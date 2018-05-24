@@ -1653,6 +1653,80 @@ OutputBuffer *RepRap::GetFilelistResponse(const char *dir)
 	return response;
 }
 
+// Get a JSON-style filelist including file types and sizes. This will output a compacted JSON version
+OutputBuffer *RepRap::GetFilelistResponseShort(const char *dir)
+{
+	// Need something to write to...
+	OutputBuffer *response;
+	if (!OutputBuffer::Allocate(response))
+	{
+		return nullptr;
+	}
+
+	// If the requested volume is not mounted, report an error
+	if (!platform->GetMassStorage()->CheckDriveMounted(dir))
+	{
+		response->copy("{\"err\":1}");
+		return response;
+	}
+
+	// Check if the directory exists
+	if (!platform->GetMassStorage()->DirectoryExists(dir))
+	{
+		response->copy("{\"err\":2}");
+		return response;
+	}
+
+	response->copy("{\"dir\":");
+	response->EncodeString(dir, strlen(dir), false);
+	response->cat(",\"files\":[");
+
+	FileInfo fileInfo;
+	bool firstFile = true;
+	bool gotFile = platform->GetMassStorage()->FindFirst(dir, fileInfo);
+	size_t bytesLeft = OutputBuffer::GetBytesLeft(response);	// don't write more bytes than we can
+
+	while (gotFile)
+	{
+		if (fileInfo.fileName[0] != '.')			// ignore Mac resource files and Linux hidden files
+		{
+			// Make sure we can end this response properly
+			if (bytesLeft < strlen(fileInfo.fileName) + 70)
+			{
+				// No more space available - stop here
+				break;
+			}
+
+			// Write delimiter
+			if (!firstFile)
+			{
+				bytesLeft -= response->cat(',');
+			}
+			firstFile = false;
+
+			// Write another file entry
+			bytesLeft -= response->catf("{\"t\":\"%c\",\"n\":", fileInfo.isDirectory ? 'd' : 'f');
+			bytesLeft -= response->EncodeString(fileInfo.fileName, MaxFilenameLength, false);
+			bytesLeft -= response->catf(",\"s\":%" PRIu32, fileInfo.size);
+
+			const struct tm * const timeInfo = gmtime(&fileInfo.lastModified);
+			if (timeInfo->tm_year <= /*19*/80)
+			{
+				// Don't send the last modified date if it is invalid
+				bytesLeft -= response->cat('}');
+			}
+			else
+			{
+				bytesLeft -= response->catf("\"d\":%lu}", fileInfo.lastModified);
+			}
+		}
+		gotFile = platform->GetMassStorage()->FindNext(fileInfo);
+	}
+	response->cat("]}");
+
+	return response;
+}
+
 // Send a beep. We send it to both PanelDue and the web interface.
 void RepRap::Beep(unsigned int freq, unsigned int ms)
 {
