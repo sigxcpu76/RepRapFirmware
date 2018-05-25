@@ -47,9 +47,11 @@
  	 	 	 may also request different status responses by specifying the "type" keyword, followed
  	 	 	 by a custom status response type. Also see "M105 S1".
 
- rr_filelist?dir=xxx
+ rr_filelist?dir=xxx[&compact=true]
  	 	 	 Returns a JSON-formatted list of all the files in xxx including the type and size in the
 			 following format: "files":[{"type":'f/d',"name":"xxx",size:yyy},...]
+			 If "compact" is specified, a compact JSON output is used:
+			 "files":[{"t":'f/d',"n":"xxx","s":yyy,d:<unix_timestamp>},...]
 
  rr_files?dir=xxx&flagDirs={1/0} [DEPRECATED]
  	 	 	 Returns a listing of the filenames in the /gcode directory of the SD card. 'dir' is a
@@ -955,7 +957,11 @@ void Webserver::HttpInterpreter::GetJsonResponse(const char* request, OutputBuff
 	else if (StringEquals(request, "filelist") && GetKeyValue("dir") != nullptr)
 	{
 		OutputBuffer::Release(response);
-		response = reprap.GetFilelistResponse(GetKeyValue("dir"));
+		if ((GetKeyValue("compact") != nullptr) && (StringEquals(GetKeyValue("compact"), "true"))) {
+			response = reprap.GetFilelistResponseCompact(GetKeyValue("dir"));
+		} else {
+			response = reprap.GetFilelistResponse(GetKeyValue("dir"));
+		}
 	}
 	else if (StringEquals(request, "files"))
 	{

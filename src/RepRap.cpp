@@ -1578,7 +1578,7 @@ OutputBuffer *RepRap::GetFilesResponse(const char *dir, bool flagsDirs)
 }
 
 // Get a JSON-style filelist including file types and sizes
-OutputBuffer *RepRap::GetFilelistResponse(const char *dir)
+OutputBuffer *RepRap::GetFilelistResponseCompact(const char *dir)
 {
 	// Need something to write to...
 	OutputBuffer *response;
